@@ -1,81 +1,88 @@
 
 
 
-ESN <- function( y,
-                 input_size = 1,
-                 # out_size = 1,
-                 lags = 1:5,
-                 seas_dummy = TRUE,
-                 n_nodes = 100,
-                 # resSize = 1000
-                 alpha = 0.3, # leaking rate
-                 lambda = 1,
-                 init_length = 0,
-                 train_length = NULL
+train_esn <- function( y,
+                       n_nodes = 100,
+                       alpha = 0.3, # leaking rate
+                       lambda = 1,
+                       input_scale = 0.5,
+                       activation = tanh,
+                       spectral_radius = 0.8,
+                       scaler = scaler_min_max,
+                       inv_scaler = scaler_inverse_min_max,
+                       scaler_args = list( a = -0.8, b = 0.8 ),
+                       n_diffs = NULL
                  ) {
 
-  if(is.null(train_length)) {
-    train_length <- length(y) - 1
-  }
+  transformers <- make_X_transformers( lags = 0,
+                                       xreg = NULL,
+                                       xreg_lags = NULL,
+                                       seas_dummy = FALSE,
+                                       index_dummy = FALSE,
+                                       intercept = FALSE,
+                                       scaler = scaler,
+                                       scaler_args = scaler_args,
+                                       inverse_scaler = inv_scaler,
+                                       n_diffs = n_diffs)
 
-  Win <- matrix(runif( n_nodes * ( 1 + input_size), -0.5, 0.5), n_nodes)
+  fitted_transformers <- transformers$train_prep(y)
+  u <- fitted_transformers$y
+
+  train_length <- length(u) - 1
+  Win <- matrix(runif( n_nodes * 2, -input_scale, input_scale), n_nodes)
   # initialize weights
-  W <- matrix(runif(n_nodes*n_nodes,-0.5,0.5),n_nodes)
-
+  W <- matrix(runif(n_nodes*n_nodes, -input_scale, input_scale), n_nodes)
   # compute spectral radius
   rho_w <- abs(eigen(W,only.values=TRUE)$values[1])
-  W <- W * 1.25 / rho_w
-
-  X <- matrix( 0,
-              nrow = 1 + input_size + n_nodes,
-              ncol = train_length ) # - init_length )
-              # set the corresponding target matrix directly
-  Yt <- matrix(y[(2#init_length+2
-                  ):(train_length+1)],1)
+  W <- W * spectral_radius / rho_w
 
   # run the reservoir with the data and collect X
+  X <- matrix( 0,
+               nrow = 2 + n_nodes,
+               ncol = train_length )
   x = rep(0, n_nodes)
   for (t in 1:train_length){
-    u = y[t]
-    x = (1-alpha) * x + alpha*tanh( Win %*% rbind(1,u) + W %*% x )
-    if (t > init_length)
-      X[,t #- init_length
-        ] = rbind( 1, u, x )
+    u_t = u[t]
+    x = (1-alpha) * x + alpha*activation( Win %*% rbind(1,u_t) + W %*% x )
+    X[,t] = rbind( 1, u_t, x )
   }
+
   # train the output
-  # replace with the cholesky decomposition please, this hurts my brain
-  Wout <- Yt %*% t(X) %*% solve( X %*% t(X) + lambda * diag( 1 + input_size + n_nodes) )
-  structure( list( y_t = Yt,
+  Wout <- u[2:length(u)] %*% t(X) %*% solve( X %*% t(X) + lambda * diag( nrow(X)) )
+  fitted <- Wout %*% X
+  fitted <- fitted_transformers$inverse_scaler( fitted )
+
+  structure( list( data = y,
+                   fitted = c(rep(NA,1),fitted),
+                   transform_fit = fitted_transformers,
+                   transformers = transformers,
                    weights = Wout,
-                   data = y,
+                   activation = activation,
                    x = x,
                    W = W,
                    w_in = Win,
-                   alpha = alpha,
-                   out_size = 1),
+                   alpha = alpha ),
              class = "ESN")
 }
 
 forecast.ESN <- function( object, h = 8, ... ) {
 
-  u = object$data[length(object$data)]
-  out_size = 1
+  u = object$transform_fit$y
+  u = u[length(u)]
+  trained_transformers <- object$transform_fit
+
   x = object$x
   Win = object$w_in
   alpha = object$alpha
   Wout = object$weights
   W = object$W
+  activation = object$activation
 
-  Y <- rep(0, h)
-  # u = data[train_length+1]
-  for (t in seq_len(h) ) {
-    x = (1 - alpha ) * x + alpha * tanh( Win %*% rbind( 1, u ) + W %*% x )
-    y = Wout %*% rbind(1,u,x)
-    Y[t] = y
-    # generative mode:
-    u = y
-    ## this would be a predictive mode:
-    #u = data[train_length+t+1]
+  forecast <- rep(NA, h)
+  for (step in seq_len(h) ) {
+    x = (1 - alpha ) * x + alpha * activation( Win %*% rbind( 1, u ) + W %*% x )
+    forecast[step] = Wout %*% rbind(1,u,x)
+    u = forecast[step]
   }
-  return(Y)
+  return(trained_transformers$inverse_scaler(forecast))
 }
