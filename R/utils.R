@@ -11,24 +11,6 @@
 #   return( list(trend = trend, season = season) )
 # }
 
-# kdemode <- function(data){
-#
-#   # Fix from/to
-#   from <- min(data)-0.1*diff(range(data))
-#   to <- max(data)+0.1*diff(range(data))
-#
-#   # Calculate KDE
-#   ks <- density(data,bw="SJ",n=512,from=from,to=to)
-#   x <- ks$x
-#   f <- ks$y
-#   h <- ks$bw
-#
-#   # Find mode
-#   mo <- x[which(f==max(f))][1] # mode
-#
-#   return(list(mode=mo,xd=x,fd=f,h=h))
-# }
-
 scaler_min_max <- function( x, a = -0.8, b = 0.8  ) {
 
   min_x = min(x, na.rm = TRUE)
@@ -58,7 +40,7 @@ resolve_intercept <- function( x, p_threshold = 0.05, use_intercept = NULL ) {
   if( isTRUE(use_intercept) ) {
     return(TRUE)
   }
-  if(  wilcox.test( x )$p.value <= p_threshold ) {
+  if( stats::wilcox.test( x )$p.value <= p_threshold ) {
     return(TRUE)
   }
   FALSE
@@ -94,8 +76,8 @@ apply_differences <- function( y, differences = 0 ) {
 }
 
 undifference <- function( y, differences, constants ) {
-  for( d in seq_len(diifferences) ) {
-    y <- diffinv( y, differences = differences[d], xi = constants[d]  )
+  for( d in seq_len(differences) ) {
+    y <- stats::diffinv( y, differences = differences[d], xi = constants[d]  )
   }
   return(y)
 }
@@ -117,9 +99,9 @@ make_X_transformers <- function( lags = NULL,
                                  seas_dummy = TRUE,
                                  index_dummy = TRUE,
                                  intercept = NULL,
-                                 scaler = min_max,
+                                 scaler = scaler_min_max,
                                  scaler_args = list(a = -0.8, b = 0.8),
-                                 inverse_scaler = inverse_min_max,
+                                 inverse_scaler = scaler_inverse_min_max,
                                  n_diffs = NULL ) {
 
   if(is.null(lags)) {
@@ -194,7 +176,7 @@ make_X_transformers <- function( lags = NULL,
 
   forecast_prep = function( y, h, train_result, xreg = NULL ) {
 
-    new_x <- matrix( rev(tail( y, max(lags) ))[lags], nrow = 1)
+    new_x <- matrix( rev(utils::tail( y, max(lags) ))[lags], nrow = 1)
 
     index <- train_result$index
     seasonalities <- train_result$seasonalities
@@ -227,4 +209,8 @@ make_X_transformers <- function( lags = NULL,
     return(new_x)
   }
   return( list(train_prep = train_prep, forecast_prep = forecast_prep) )
+}
+
+last <- function( x ) {
+  x[length(x)]
 }

@@ -1,10 +1,12 @@
 
 train_elm <- function( y,
-                       n_hidden = 5,
+                       n_hidden = 20,
                        activation = sigmoid,
                        lags = 1:5,
+                       lambda = 0.05,
+                       family = "gaussian",
                        seas_dummy = TRUE,
-                       index_dummy = TRUE,
+                       index_dummy = FALSE,
                        intercept = FALSE,
                        scaler = scaler_min_max,
                        inv_scaler = scaler_inverse_min_max,
@@ -27,7 +29,7 @@ train_elm <- function( y,
   # create random weights from a normal distribution (runif might be better)
   # runif version from nnfor
   limits <- c(-1, 1) * (1 / sqrt(ncol(X)-1))
-  W <- matrix( runif( ncol(X) * n_hidden,
+  W <- matrix( stats::runif( ncol(X) * n_hidden,
                       min = limits[1],
                       max = limits[2]),
               nrow = ncol(X),
@@ -36,17 +38,19 @@ train_elm <- function( y,
   # call activation on the projection to get the hidden layer
   H <- activation(  X %*% W )
   # compute weights for hidden layer - the only actual training step
-  B <- MASS::ginv(H) %*% scaled_y
-
-  fitted <- H %*% B
+  model <- ridge_solver( scaled_y, H, lambda = lambda, family = family )
+  fitted <- H %*% model[["coef"]]
+  fitted <- fitted_transformers$inverse_scaler( fitted )
+  fitted <- c(rep(NA, max(lags)), fitted)
 
   structure( list(
     data = y,
-    fitted = c(rep(NA, max(lags)), fitted),
+    fitted = fitted,
+    resid = y - fitted,
     transform_fit = fitted_transformers,
     transformers = transformers,
     W = W,
-    B = B,
+    model = model,
     activation = activation
   ), class = "ELM")
 }
@@ -57,7 +61,7 @@ forecast.ELM <- function( object, h = 8, ...  ) {
   trained_transformers <- object$transform_fit
   forecast_prep <- object$transformers$forecast_prep
 
-  B <- object$B
+  model <- object$model
   W <- object$W
   activation <- object$activation
 
@@ -68,7 +72,7 @@ forecast.ELM <- function( object, h = 8, ...  ) {
     # transform via projection + activation
     H <- activation(  new_x %*% W )
     # make forecast
-    forecast[step] <- c(H %*% B)
+    forecast[step] <- predict( model, H )
   }
   return(trained_transformers$inverse_scaler(forecast))
 }

@@ -3,12 +3,12 @@ orf_features <- function(n_garbage, scaling = 0.1) {
   d <- n_garbage
   # qr decomposition
   Q <- qr.Q(qr(
-    matrix(rnorm(n = d^2), nrow = d)
+    matrix(stats::rnorm(n = d^2), nrow = d)
   ))
 
   # this is the chi, not the chi squared (I misread and this was a giant
   # source of a headache)
-  S <- sqrt(rchisq(
+  S <- sqrt(stats::rchisq(
     n = d,
     df = d
   ))
@@ -39,7 +39,7 @@ orf <- function(X, d, scaling = 0.1) {
 }
 
 rff <- function(X, d, scaling = 0.1) {
-  W <- scaling * matrix(rnorm(n = d * ncol(X)), nrow = ncol(X))
+  W <- scaling * matrix(stats::rnorm(n = d * ncol(X)), nrow = ncol(X))
   return(W)
 }
 
@@ -49,6 +49,7 @@ train_garbage <- function(y,
                           garbage_type = c(orf, rff),
                           lambda = 1,
                           lags = 1:5,
+                          family = "gaussian",
                           seas_dummy = TRUE,
                           index_dummy = TRUE,
                           intercept = FALSE,
@@ -68,7 +69,6 @@ train_garbage <- function(y,
     inv_scaler,
     n_diffs
   )
-  # return(transformers)
   fitted_transformers <- transformers$train_prep(y)
   X <- fitted_transformers$X
   scaled_y <- fitted_transformers$y
@@ -77,16 +77,18 @@ train_garbage <- function(y,
   Z <- X %*% W
   Z <- cbind(cos(Z), sin(Z))
 
-  coef <- scaled_y %*% Z %*% solve(t(Z) %*% Z + lambda * diag(ncol(Z)))
-  preds <- coef %*% t(Z)
+  model <- ridge_solver( scaled_y, Z, lambda = lambda, family = family )
+  preds <- Z %*% model[["coef"]]
   fitted <- fitted_transformers$inverse_scaler(preds)
+  fitted <- c(rep(NA, max(lags)), fitted)
 
   structure(list(
     data = y,
-    fitted = c(rep(NA, max(lags)), fitted),
+    fitted = fitted,
+    resid = y - fitted,
     transform_fit = fitted_transformers,
     transformers = transformers,
-    alpha = coef,
+    model = model,
     W = W
   ), class = "garbage")
 }
@@ -97,7 +99,7 @@ forecast.garbage <- function(object, h = 8, ...) {
   forecast_prep <- object$transformers$forecast_prep
 
   W <- object$W
-  coef <- object$alpha
+  model <- object$model
 
   forecast <- rep(NA, h)
   for (step in seq_len(h)) {
@@ -106,7 +108,7 @@ forecast.garbage <- function(object, h = 8, ...) {
     # form kernel, forecast using learned coefficients
     Z <- new_x %*% W
     Z <- cbind(cos(Z), sin(Z))
-    forecast[step] <- coef %*% t(Z)
+    forecast[step] <- predict( model, Z)
   }
   return(trained_transformers$inverse_scaler(forecast))
 }
