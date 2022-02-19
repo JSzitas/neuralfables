@@ -5,8 +5,9 @@ train_neuralfable <- function(.data, specials, ...) {
   parameters <- specials$parameters[[1]]
   y <- c(.data)[[tsibble::measured_vars(.data)]]
   trainer <- specials$method[[1]]
+  xreg <- specials$xreg[[1]]$xreg
 
-  model <- do.call( trainer, c( list( y = y), parameters ))
+  model <- do.call( trainer, c( list( y = y), parameters, xreg = xreg ))
   # returns a trained model - do we want to dispatch on the class within some
   # 'forecast.neuralfable' function? (it could be a decent way to wrap this for future use)
 
@@ -24,26 +25,46 @@ specials_neuralfable <- fabletools::new_specials(
   parameters = function( ... ) {
     list( ...)
   },
-  method = function( method = c("mlp","garbage","elm","esn") ) {
+  method = function( method = c("mlp","garbage","elm","gbm") ) {
     if( length(method) > 1) {
       method <- method[1]
       rlang::warn( glue::glue("Multiple arguments provided to 'method' - using the first one, '{method}'." ) )
     }
 
-    if( !(method %in% c("mlp","garbage","elm","esn"))) {
+    if( !(method %in% c("mlp","garbage","elm","gbm"))) {
       rlang::abort( glue::glue( "method {method} not supported." ) )
     }
 
-    trainer <- list( esn = train_esn,
-                     mlp = train_mlp,
+    trainer <- list( mlp = train_mlp,
                      elm = train_elm,
-                     garbage = train_garbage)[[method]]
+                     garbage = train_garbage,
+                     gbm = train_gbm)[[method]]
 
     return(trainer)
   },
   xreg = function(...) {
-    # This model doesn't support exogenous regressors, time to error.
-    stop("Exogenous regressors aren't supported by `neuralfables` at this time.")
+    dots <- rlang::enexprs(...)
+    env <- purrr::map(rlang::enquos(...), rlang::get_env)
+    env[ purrr::map_lgl(env,
+                        purrr::compose( rlang::is_empty,
+                                        rlang::env_parents )
+                        )
+         ] <- NULL
+    env <- if (!rlang::is_empty(env))
+      rlang::get_env(env[[1]])
+    else base_env()
+    constants <- purrr::map_lgl(dots, inherits, "numeric")
+    constant_given <- any(purrr::map_lgl(dots[constants], `%in%`, -1:1))
+    model_formula <- rlang::new_formula( lhs = NULL,
+                                         rhs = purrr::reduce( dots,
+                                                              function(.x, .y) rlang::call2("+", .x, .y)
+                                                              )
+                                         )
+    xreg <- stats::model.frame( model_formula,
+                                data = env,
+                                na.action = stats::na.pass
+                                )
+    list( xreg = if (NCOL(xreg) == 0) NULL else as.matrix(xreg))
   },
   .required_specials = c("parameters", "method")
 )
@@ -53,7 +74,7 @@ specials_neuralfable <- fabletools::new_specials(
 #' @param formula A neuralfable model formula. This encompasses all models exposed by neuralfables (see details).
 #' @param ... Additional arguments (see details).
 #' @return A specified model, analogous to other model objects within fable/fabletools.
-#' @details Use the method special to specify a method - available methods are **"elm", "mlp", "garbage", "esn"**,
+#' @details Use the method special to specify a method - available methods are **"elm", "mlp", "garbage", "gbm"**,
 #' with default being **"mlp"**.
 #'
 #' @export
