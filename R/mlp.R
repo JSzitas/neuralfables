@@ -1,6 +1,7 @@
 
 train_mlp <- function( y,
                  lags = 1:4,
+                 xreg = NULL,
                  seas_dummy = TRUE,
                  index_dummy = FALSE,
                  intercept = FALSE,
@@ -10,11 +11,12 @@ train_mlp <- function( y,
                  n_diffs = NULL,
                  n_hidden = 20,
                  reps = 15,
-                 combination_fun = stats::median) {
+                 combination_fun = stats::median,
+                 ...) {
 
   transformers <- make_X_transformers( lags,
-                                       xreg = NULL,
-                                       xreg_lags = NULL,
+                                       xreg,
+                                       lags,
                                        seas_dummy,
                                        index_dummy,
                                        intercept,
@@ -25,14 +27,15 @@ train_mlp <- function( y,
 
   fitted_transformers <- transformers$train_prep(y)
   X <- fitted_transformers$X
-  scaled_y <- fitted_transformers$y
+  y_ <- fitted_transformers$y
 
   colnames(X) <- paste0("feature_",seq_len(ncol(X)))
-  df = data.frame( y_net = scaled_y, X )
+  df = data.frame( y_net = y_, X )
   formula = stats::as.formula(paste0(  "y_net ~", paste0(colnames(X), collapse = "+")))
 
   model <- neuralnet::neuralnet( formula, data = df, hidden = n_hidden, rep = reps,
                                  err.fct = "sse", linear.output = TRUE )
+
   fitted <- do.call( cbind, model[["net.result"]])
   fitted <- apply( fitted, 1, combination_fun )
   fitted <- fitted_transformers$inverse_scaler( fitted )
@@ -41,7 +44,7 @@ train_mlp <- function( y,
   structure( list(
     data = y,
     fitted = fitted,
-    resid = y - fitted,
+    resid =  y - fitted,
     transform_fit = fitted_transformers,
     transformers = transformers,
     model = model,
@@ -65,9 +68,9 @@ forecast.MLP <- function( object, h = 8, ...  ) {
     forecast <- rep(NA, h)
     for( step in seq_len(h)) {
       y_ <- c(y, forecast[seq_len(step-1)])
-      new_x <- forecast_prep(y_, h, trained_transformers)
+      new_x <- forecast_prep(y_, h, trained_transformers, ...)
       colnames(new_x) <- paste0("feature_",seq_len(ncol(new_x)))
-      forecast[step] <- c(predict( model, new_x, rep = rep ))
+      forecast[step] <- c(stats::predict( model, new_x, rep = rep ))
     }
     all_forecasts[[rep]] <- forecast
   }

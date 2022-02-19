@@ -49,7 +49,6 @@ train_garbage <- function(y,
                           garbage_type = c(orf, rff),
                           lambda = 1,
                           lags = 1:5,
-                          family = "gaussian",
                           seas_dummy = TRUE,
                           index_dummy = TRUE,
                           intercept = FALSE,
@@ -77,8 +76,8 @@ train_garbage <- function(y,
   Z <- X %*% W
   Z <- cbind(cos(Z), sin(Z))
 
-  model <- ridge_solver( scaled_y, Z, lambda = lambda, family = family )
-  preds <- Z %*% model[["coef"]]
+  model <- ridge_solver( scaled_y, Z, lambda = lambda, family = "gaussian" )
+  preds <- c( Z %*% model[["coef"]] )
   fitted <- fitted_transformers$inverse_scaler(preds)
   fitted <- c(rep(NA, max(lags)), fitted)
 
@@ -108,7 +107,7 @@ forecast.garbage <- function(object, h = 8, ...) {
     # form kernel, forecast using learned coefficients
     Z <- new_x %*% W
     Z <- cbind(cos(Z), sin(Z))
-    forecast[step] <- predict( model, Z)
+    forecast[step] <- stats::predict( model, Z)
   }
   return(trained_transformers$inverse_scaler(forecast))
 }
