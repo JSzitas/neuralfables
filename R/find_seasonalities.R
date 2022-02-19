@@ -28,7 +28,7 @@ find_seasonalities <- function( y, max_iter = 5, aggregator = sum, upper_limit =
   periods <- list()
   for( iter in seq_len(max_iter) ) {
     last_period <- period(y)
-    if( last_period <= 1 ){
+    if( last_period <= 1 || is.na(last_period) ){
       break;
     }
     periods[[iter]] <- last_period
@@ -38,25 +38,6 @@ find_seasonalities <- function( y, max_iter = 5, aggregator = sum, upper_limit =
   x <- cumprod( unlist(periods))
   x[ x < upper_limit ]
 }
-
-
-
-
-seasonal_dummy <- function() {
-
-}
-
-# trigonometric_seasonal_dummy <- function( m, n ) {
-#   x <- matrix(0, n, m )
-#   t <- seq_len(n)
-#   for (i in 1:(m/2)) {
-#     x[, 1 + (i - 1) * 2] <- cos((2 * t * pi * i)/m +
-#                                   (2 * pi)/m)
-#     x[, 2 + (i - 1) * 2] <- sin((2 * t * pi * i)/m +
-#                                   (2 * pi)/m)
-#   }
-#   return(x)
-# }
 
 trigonometric_seasonal_dummy <- function( n, seas_length = c(12) ) {
 
