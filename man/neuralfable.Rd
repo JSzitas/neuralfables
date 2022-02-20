@@ -18,6 +18,6 @@ A specified model, analogous to other model objects within fable/fabletools.
 Neurafable model class
 }
 \details{
-Use the method special to specify a method - available methods are **"elm", "mlp", "garbage", "gbm"**,
+Use the method special to specify a method - available methods are **"elm", "mlp", "garbage", "mboost", and ""xgboost"**,
 with default being **"mlp"**.
 }
