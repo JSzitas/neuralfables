@@ -1,5 +1,5 @@
 
-train_gbm <- function( y,
+train_mboost <- function( y,
                        family = mboost::Gaussian(),
                        boost_control = mboost::boost_control( mstop = 100, nu = 0.1 ),
                        tree_controls = partykit::ctree_control(
@@ -35,10 +35,6 @@ train_gbm <- function( y,
   model <- mboost::blackboost( formula, data = df, control = boost_control, tree_controls = tree_controls,
                       family = family )
   fitted <- fitted(model)
-
-  # print( length(y) - (length(fitted) + max(lags)))
-  # print(length(fitted) + max(lags))
-
   fitted <- c(rep(NA,max(lags) + length(y) - (length(fitted) + max(lags))), fitted)
 
   structure( list(
@@ -48,10 +44,10 @@ train_gbm <- function( y,
     transform_fit = fitted_transformers,
     transformers = transformers,
     model = model
-  ), class = "GBM")
+  ), class = "MBOOST")
 }
 
-forecast.GBM <- function( object, h = 8, ...  ) {
+forecast.MBOOST <- function( object, h = 8, ...  ) {
 
   y <- object$transform_fit$y
   trained_transformers <- object$transform_fit
