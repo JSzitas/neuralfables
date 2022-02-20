@@ -15,9 +15,8 @@ test <- tsibbledata::pelt$Lynx
 test_size <- 76
 plot.ts(test)
 
-### gbm
-gbm <- train_gbm(test[1:test_size], lags = c(1:5), intercept = FALSE, index_dummy = FALSE, seas_dummy = TRUE)
-fcst <- forecast.GBM(gbm, h = length(test) - test_size) # , xreg = as.matrix(x_reg[(test_size+1):length(x_reg)] ))
+xgb <- train_xgboost(test[1:test_size], lags = c(1:10), intercept = FALSE, index_dummy = FALSE, seas_dummy = TRUE)
+fcst <- forecast.XGBOOST(xgb, h = length(test) - test_size) # , xreg = as.matrix(x_reg[(test_size+1):length(x_reg)] ))
 fcst %>%
   c(rep(NA, test_size), .) %>%
   lines(col = "red")
@@ -54,12 +53,12 @@ fcst %>%
 
 
 ### ELM
-elm <- train_elm( test[1:test_size], lags = c(1,2,4), n_hidden = 25, reps = 45, lambda = NULL)#, n_diffs = 0)
-fcst <- forecast.ELM(elm, h = length(test)-test_size )
-plot.ts(test)
-fcst %>%
-  c(rep(NA,test_size),.) %>%
-  lines(col = "blue")
+# elm <- train_elm( test[1:test_size], lags = c(1,2,4), n_hidden = 25, reps = 45, lambda = NULL)#, n_diffs = 0)
+# fcst <- forecast.ELM(elm, h = length(test)-test_size )
+# plot.ts(test)
+# fcst %>%
+#   c(rep(NA,test_size),.) %>%
+#   lines(col = "blue")
 #
 # ## garbage
 # sink <- train_garbage( test[1:test_size], index_dummy = FALSE, lags = c(1,2,4), n_garbage = 20)
