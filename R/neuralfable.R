@@ -8,12 +8,12 @@ train_neuralfable <- function(.data, specials, ...) {
   xreg <- specials$xreg[[1]]$xreg
 
   model <- do.call( trainer, c( list( y = y), parameters, xreg = xreg ))
-  # returns a trained model - do we want to dispatch on the class within some
-  # 'forecast.neuralfable' function? (it could be a decent way to wrap this for future use)
-
+  # returns a trained model
   structure(
     list(
       fit = model,
+      method = trainer,
+      parameters = parameters,
       resid = model[["resid"]],
       fitted = model[["fitted"]]
     ),
@@ -25,20 +25,21 @@ specials_neuralfable <- fabletools::new_specials(
   parameters = function( ... ) {
     list( ...)
   },
-  method = function( method = c("mlp","garbage","elm","gbm") ) {
+  method = function( method = c("mlp","garbage","elm","mboost", "xgboost") ) {
     if( length(method) > 1) {
       method <- method[1]
       rlang::warn( glue::glue("Multiple arguments provided to 'method' - using the first one, '{method}'." ) )
     }
 
-    if( !(method %in% c("mlp","garbage","elm","gbm"))) {
+    if( !(method %in% c("mlp","garbage","elm","mboost", "xgboost"))) {
       rlang::abort( glue::glue( "method {method} not supported." ) )
     }
 
     trainer <- list( mlp = train_mlp,
                      elm = train_elm,
                      garbage = train_garbage,
-                     gbm = train_gbm)[[method]]
+                     mboost = train_mboost,
+                     xgboost = train_xgboost)[[method]]
 
     return(trainer)
   },
@@ -74,10 +75,11 @@ specials_neuralfable <- fabletools::new_specials(
 #' @param formula A neuralfable model formula. This encompasses all models exposed by neuralfables (see details).
 #' @param ... Additional arguments (see details).
 #' @return A specified model, analogous to other model objects within fable/fabletools.
-#' @details Use the method special to specify a method - available methods are **"elm", "mlp", "garbage", "gbm"**,
+#' @details Use the method special to specify a method - available methods are **"elm", "mlp", "garbage", "mboost", and ""xgboost"**,
 #' with default being **"mlp"**.
 #'
 #' @export
+#' @rdname neuralfable
 neuralfable <- function(formula, ...) {
   # Create a model class which combines the training method, specials, and data checks
   model_neuralfable <- fabletools::new_model_class("NEURALFABLE",
