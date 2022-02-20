@@ -47,4 +47,6 @@
 #' @importFrom feasts unitroot_nsdiffs
 #' @importFrom purrr partial
 #' @importFrom utils tail
+#' @importFrom xgboost xgb.DMatrix
+#' @importFrom xgboost xgboost
 NULL

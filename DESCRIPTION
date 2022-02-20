@@ -27,6 +27,7 @@ Imports:
     dplyr,
     feasts,
     utils,
+    xgboost,
     generics
 Suggests: 
     tsibbledata,
