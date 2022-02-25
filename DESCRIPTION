@@ -1,7 +1,7 @@
 Package: neuralfables
 Type: Package
 Title: Neural Networks and Other Nonparametric Models for Fable
-Version: 0.2.2
+Version: 0.3.1
 Author: Juraj Szitas
 Maintainer: The package maintainer <yourself@somewhere.net>
 Description: Fit neural networks and other non-parametric models for time series forecasting.
